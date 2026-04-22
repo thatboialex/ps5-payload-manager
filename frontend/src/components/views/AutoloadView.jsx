@@ -91,7 +91,7 @@ const AutoloadView = ({ payloads, config, onSaveConfig, onToast }) => {
           </button>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar min-h-0 pb-12">
+      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar min-h-0 pb-6">
         <div className="grid grid-cols-1 gap-4">
           {availablePayloads.map(p => {
             const isKstuff = p.toLowerCase().includes('kstuff');
@@ -149,7 +149,7 @@ const AutoloadView = ({ payloads, config, onSaveConfig, onToast }) => {
       </div>
 
       <div className="glass-panel p-6 rounded-ps-3xl border-white/10 flex-1 overflow-hidden flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2 mb-6 pb-12">
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2 mb-6 pb-6">
           {autoloadList.map((p, i) => (
             <div key={`${p}-${i}`} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 animate-in slide-in-from-left duration-200">
               <div className="flex items-center space-x-4">
