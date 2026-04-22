@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { CloudDownload, Upload, Package, Database, RefreshCw, Trash2, ShieldCheck, Loader2 } from 'lucide-react'
+import { CloudDownload, Upload, Package, Database, RefreshCw, Trash2, ShieldCheck, Loader2, AlertTriangle } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { cn, isPS5 } from '../../utils/helpers'
 import PayloadName from '../ui/PayloadName'
@@ -84,7 +84,7 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, ip }) => {
   return (
     <div className="space-y-12 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-        <h2 className="text-5xl font-extrabold text-white tracking-tight">
+        <h2 className="text-4xl font-extrabold text-white tracking-tight">
           Payload <span className="text-ps-blue">Management</span>
         </h2>
 

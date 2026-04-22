@@ -11,20 +11,56 @@ const AutoloadView = ({ payloads, config, onSaveConfig, onToast }) => {
   const [showDelayModal, setShowDelayModal] = useState(false)
   const [customDelay, setCustomDelay] = useState('')
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
+  const lastSyncedRef = React.useRef('')
 
+  // Load initial config
   useEffect(() => {
     if (config) {
-      setEnabled(config.AUTOLOAD_ENABLED === true || config.AUTOLOAD_ENABLED === "true")
-      setAutoloadList(config.AUTOLOAD_LIST ? config.AUTOLOAD_LIST.split(',').filter(x => x) : [])
+      const en = config.AUTOLOAD_ENABLED === true || config.AUTOLOAD_ENABLED === "true"
+      const listStr = config.AUTOLOAD_LIST || ''
+      setEnabled(en)
+      setAutoloadList(listStr.split(',').filter(x => x))
+      lastSyncedRef.current = `${en}:${listStr}`
+      setIsInitialized(true)
     }
   }, [config])
+
+  // Debounced Auto-Save
+  useEffect(() => {
+    if (!isInitialized) return
+
+    const currentState = `${enabled}:${autoloadList.join(',')}`
+    if (currentState === lastSyncedRef.current) return
+
+    const timer = setTimeout(async () => {
+      const shouldEnable = autoloadList.length > 0 && enabled
+      const finalList = autoloadList.map(p => p === 'DELAY' ? '!1000' : p)
+      const finalStr = finalList.join(',')
+      
+      setSaving(true)
+      const success = await onSaveConfig({ 
+        AUTOLOAD_ENABLED: shouldEnable, 
+        AUTOLOAD_LIST: finalStr
+      })
+      
+      if (success) {
+        lastSyncedRef.current = `${shouldEnable}:${finalStr}`
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      }
+      setSaving(false)
+    }, 1500)
+
+    return () => clearTimeout(timer)
+  }, [autoloadList, enabled, isInitialized, onSaveConfig])
 
   const internalPayloads = payloads.filter(p => !p.includes('/mnt/usb')).map(p => p.split('/').pop())
   const availablePayloads = internalPayloads.filter(p => !autoloadList.includes(p))
 
   const handleToggle = (val) => {
     setEnabled(val)
-    onSaveConfig({ AUTOLOAD_ENABLED: val, AUTOLOAD_LIST: autoloadList.join(',') })
   }
 
   const addPayload = (p) => {
@@ -58,17 +94,6 @@ const AutoloadView = ({ payloads, config, onSaveConfig, onToast }) => {
     const newList = [...autoloadList]
       ;[newList[index + 1], newList[index]] = [newList[index], newList[index + 1]]
     setAutoloadList(newList)
-  }
-
-  const handleSave = async () => {
-    const shouldEnable = autoloadList.length > 0 && enabled
-    if (autoloadList.length === 0) setEnabled(false)
-    const finalList = autoloadList.map(p => p === 'DELAY' ? '!1000' : p)
-    const success = await onSaveConfig({ AUTOLOAD_ENABLED: shouldEnable, AUTOLOAD_LIST: finalList.join(',') })
-    if (success) {
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    }
   }
 
   const renderAvailable = () => (
@@ -133,9 +158,24 @@ const AutoloadView = ({ payloads, config, onSaveConfig, onToast }) => {
   const renderSequence = () => (
     <div className="space-y-8 animate-fade-in flex flex-col h-full min-h-0">
       <div className="flex items-center justify-between shrink-0">
-        <h2 className="text-4xl font-extrabold text-white tracking-tight">
-          Autoload <span className="text-ps-blue">Sequence</span>
-        </h2>
+        <div className="flex flex-col">
+          <h2 className="text-4xl font-extrabold text-white tracking-tight">
+            Autoload <span className="text-ps-blue">Sequence</span>
+          </h2>
+          <div className="h-6 mt-1 overflow-hidden">
+            {saving ? (
+              <div className="flex items-center space-x-2 text-ps-blue/60 text-xs font-bold uppercase tracking-widest animate-pulse">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                <span>Saving Changes...</span>
+              </div>
+            ) : saved ? (
+              <div className="flex items-center space-x-2 text-emerald-500 text-xs font-bold uppercase tracking-widest animate-in slide-in-from-bottom-2">
+                <CheckCircle2 className="w-3 h-3" />
+                <span>All Changes Saved</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
         <button
           onClick={() => setSubView('add')}
           className={cn(
@@ -149,7 +189,7 @@ const AutoloadView = ({ payloads, config, onSaveConfig, onToast }) => {
       </div>
 
       <div className="glass-panel p-6 rounded-ps-3xl border-white/10 flex-1 overflow-hidden flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2 mb-6 pb-6">
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2 mb-2 pb-6">
           {autoloadList.map((p, i) => (
             <div key={`${p}-${i}`} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 animate-in slide-in-from-left duration-200">
               <div className="flex items-center space-x-4">
@@ -176,17 +216,6 @@ const AutoloadView = ({ payloads, config, onSaveConfig, onToast }) => {
             </div>
           )}
         </div>
-
-        <button
-          onClick={handleSave}
-          className={cn(
-            "w-full py-5 rounded-2xl font-bold tracking-tight text-xl transition-all shadow-2xl flex items-center justify-center space-x-3",
-            saved ? "bg-emerald-600 text-white" : "bg-ps-blue hover:bg-ps-blue/80 text-white"
-          )}
-        >
-          {saved ? <CheckCircle2 className="w-6 h-6" /> : <ShieldCheck className="w-6 h-6" />}
-          <span>{saved ? "Configuration Saved" : "Save Sequence"}</span>
-        </button>
       </div>
     </div>
   )
