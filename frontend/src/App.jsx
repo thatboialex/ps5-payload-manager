@@ -228,7 +228,7 @@ function App() {
 
   return (
     <div className={cn(
-      "min-h-screen ps5-bg text-zinc-100 font-ps5 flex",
+      "min-h-screen min-h-[100dvh] ps5-bg text-zinc-100 font-ps5 flex",
       isPS5 ? "flex-row overflow-hidden" : "flex-col md:flex-row md:overflow-hidden"
     )}>
       {/* Toast Container */}
@@ -314,7 +314,7 @@ function App() {
 
       {/* MOBILE BOTTOM NAV */}
       <nav className={cn(
-        "fixed bottom-0 inset-x-0 z-[100] bg-black/80 backdrop-blur-2xl border-t border-white/5 h-20 flex items-center shadow-[0_-10px_30px_rgba(0,0,0,0.5)]",
+        "fixed bottom-0 inset-x-0 z-[100] bg-black/80 backdrop-blur-2xl border-t border-white/5 h-[calc(5rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] flex items-center shadow-[0_-10px_30px_rgba(0,0,0,0.5)]",
         isPS5 ? "hidden" : "md:hidden"
       )}>
         <NavButton active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={LayoutDashboard} label="Dashboard" mobileLabel="HOME" />
@@ -337,7 +337,7 @@ function App() {
         isPS5 ? "h-screen flex-1 min-h-0" : "md:h-screen md:flex-1 md:min-h-0"
       )}>
         <main className={cn(
-          "custom-scrollbar pb-24 md:pb-16 max-w-[1800px] mx-auto w-full flex flex-col",
+          "custom-scrollbar pb-36 md:pb-16 max-w-[1800px] mx-auto w-full flex flex-col",
           isPS5 ? "p-16 flex-1 overflow-y-auto" : "p-6 md:p-16 md:flex-1 md:overflow-y-auto"
         )}>
           {view === 'dashboard' && (

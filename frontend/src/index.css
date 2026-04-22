@@ -19,6 +19,11 @@
   color-scheme: dark;
 }
 
+html, body {
+  height: 100%;
+  height: -webkit-fill-available;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -28,6 +33,7 @@ body {
   font-size: 20px; /* TV visibility */
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 @media (min-width: 768px) {
