@@ -33,7 +33,7 @@ echo "      Frontend build successful."
 
 # 3. Build the native ELF via Docker
 echo "[3/4] Building native ELF via Docker..."
-docker run --rm -v "$(pwd)":/src -w /src nextmenu-sdk make clean all > /dev/null 2>&1
+docker run --rm -v "$(pwd)":/src -w /src ps5-payload-sdk make clean all > /dev/null 2>&1
 
 if [ $? -ne 0 ]; then
     echo "      !!! ELF build FAILED! Check Makefile or source errors."

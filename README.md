@@ -17,13 +17,13 @@ make frontend-build
 ### 2. Build the SDK Docker Image
 If you haven't already, build the SDK environment:
 ```bash
-docker build -t nextmenu-sdk -f Dockerfile.sdk .
+docker build -t ps5-payload-sdk -f Dockerfile.sdk .
 ```
 
 ### 3. Build the ELF
 Use the Docker container to compile the Payload Manager. It is recommended to run `make clean` if you updated the frontend.
 ```bash
-docker run --rm -v $(pwd):/src -w /src nextmenu-sdk make clean all
+docker run --rm -v $(pwd):/src -w /src ps5-payload-sdk make clean all
 ```
 
 The resulting `pldmgr.elf` will be created in the root directory.
