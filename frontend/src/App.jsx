@@ -47,6 +47,7 @@ function App() {
   const [downloadModal, setDownloadModal] = useState({ show: false, name: '', progress: 0 })
   const [confirmModal, setConfirmModal] = useState({ show: false, title: '', message: '', onConfirm: null })
   const [moveFromUsbPath, setMoveFromUsbPath] = useState(null)
+  const [storageScrollTarget, setStorageScrollTarget] = useState(null)
 
   const addToast = (message, type = 'success') => {
     const id = Date.now()
@@ -416,7 +417,7 @@ function App() {
                       <p className="text-white font-extrabold tracking-tight text-2xl">Empty Library</p>
                       <p className="text-zinc-500 font-medium">Add payloads from the Cloud Hub to get started.</p>
                     </div>
-                    <button onClick={() => setView('storage')} className="px-8 py-3 bg-ps-blue text-white rounded-xl font-bold tracking-tight shadow-xl shadow-ps-blue/20">Open Repository</button>
+                    <button onClick={() => { setStorageScrollTarget('cloud-repository'); setView('storage'); }} className="px-8 py-3 bg-ps-blue text-white rounded-xl font-bold tracking-tight shadow-xl shadow-ps-blue/20">Open Repository</button>
                   </div>
                 ) : (
                   payloads.map((p, i) => (
@@ -433,7 +434,16 @@ function App() {
           )}
 
           {view === 'storage' && (
-            <StorageHub payloads={payloads} onInstall={handleInstall} onDelete={handleDelete} onUpload={handleUpload} onImportFromUsb={handleImportFromUsb} ip={ip} />
+            <StorageHub 
+              payloads={payloads} 
+              onInstall={handleInstall} 
+              onDelete={handleDelete} 
+              onUpload={handleUpload} 
+              onImportFromUsb={handleImportFromUsb} 
+              ip={ip} 
+              scrollTarget={storageScrollTarget}
+              onClearScrollTarget={() => setStorageScrollTarget(null)}
+            />
           )}
 
           {view === 'move_from_usb' && moveFromUsbPath && (

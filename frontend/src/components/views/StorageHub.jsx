@@ -4,7 +4,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { cn, isPS5 } from '../../utils/helpers'
 import PayloadName from '../ui/PayloadName'
 
-const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, ip }) => {
+const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, ip, scrollTarget, onClearScrollTarget }) => {
   const [remotePayloads, setRemotePayloads] = useState([])
   const [repoUrl, setRepoUrl] = useState('')
   const [loading, setLoading] = useState(false)
@@ -63,6 +63,19 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
   useEffect(() => {
     fetchRemote()
   }, [])
+
+  useEffect(() => {
+    if (scrollTarget) {
+      const timer = setTimeout(() => {
+        const element = document.getElementById(scrollTarget);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+        if (onClearScrollTarget) onClearScrollTarget();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [scrollTarget]);
 
   const localFilenames = useMemo(() => payloads.map(p => p.split('/').pop()), [payloads])
   const internalPayloads = payloads.filter(p => !p.includes('/mnt/usb'))
@@ -169,59 +182,8 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
         </div>
       </section>
 
-      {/* USB Storage Section */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between px-2">
-          <h3 className="label-caps !text-ps-blue flex items-center space-x-4 text-lg">
-            <HardDrive className="w-6 h-6" />
-            <span>USB Storage</span>
-          </h3>
-          <span className="bg-ps-blue/5 px-4 py-1 rounded-full text-ps-blue font-bold text-xs border border-ps-blue/20">
-            {payloads.filter(p => p.includes('/mnt/usb')).length} Files
-          </span>
-        </div>
-
-        <div className={cn("grid gap-4", isPS5 ? "grid-cols-2" : "grid-cols-1")}>
-          {payloads.filter(p => p.includes('/mnt/usb')).length === 0 ? (
-            <div className="col-span-full py-20 border-2 border-dashed border-white/5 rounded-ps-3xl flex flex-col items-center justify-center space-y-4 bg-white/[0.01]">
-              <HardDrive className="w-16 h-16 text-white/5" />
-              <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm italic">No USB Payloads Found</p>
-            </div>
-          ) : (
-            payloads.filter(p => p.includes('/mnt/usb')).map((path, i) => {
-              const fileName = path.split('/').pop()
-              return (
-                <div key={i} className={cn(
-                  "group flex justify-between p-4 md:p-6 glass-card rounded-ps-2xl border-white/10 hover:border-ps-blue/30 gap-4",
-                  isPS5 ? "flex-row items-center" : "flex-col md:flex-row md:items-center"
-                )}>
-                  <div className="flex items-center space-x-4 md:space-x-6 min-w-0">
-                    <div className="p-3 md:p-4 bg-white/5 rounded-2xl group-hover:bg-ps-blue/10 transition-colors shrink-0">
-                      <Usb className="w-6 h-6 md:w-8 md:h-8 text-zinc-400 group-hover:text-ps-blue transition-colors" />
-                    </div>
-                    <div className="space-y-1 min-w-0 flex-1">
-                      <PayloadName path={path} className="text-xl md:text-2xl text-white" stacked hideIcon={true} />
-                      <p className="text-[10px] text-zinc-600 font-medium font-mono uppercase tracking-tighter opacity-60 truncate">{path}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center ml-auto md:ml-0">
-                    <button
-                      onClick={() => onImportFromUsb(path)}
-                      className="flex items-center space-x-2 md:space-x-3 px-4 md:px-6 py-3 md:py-4 bg-white/5 hover:bg-ps-blue text-white rounded-xl font-bold text-xs md:text-sm transition-all border border-white/10 hover:border-ps-blue shadow-xl group/btn"
-                    >
-                      <Database className="w-4 h-4 md:w-5 md:h-5 text-ps-blue group-hover/btn:text-white transition-colors" />
-                      <span>Move to Internal</span>
-                    </button>
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </div>
-      </section>
-
       {/* Cloud Repository Section */}
-      <section className="space-y-6">
+      <section id="cloud-repository" className="space-y-6">
         <div className="flex items-center justify-between px-2">
           <h3 className="label-caps !text-white flex items-center space-x-4 text-lg" >
             <CloudDownload className="w-6 h-6 text-ps-blue" />
@@ -286,6 +248,57 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
             )}
           </div>
         )}
+      </section>
+
+      {/* USB Storage Section */}
+      <section className="space-y-6">
+        <div className="flex items-center justify-between px-2">
+          <h3 className="label-caps !text-ps-blue flex items-center space-x-4 text-lg">
+            <HardDrive className="w-6 h-6" />
+            <span>USB Storage</span>
+          </h3>
+          <span className="bg-ps-blue/5 px-4 py-1 rounded-full text-ps-blue font-bold text-xs border border-ps-blue/20">
+            {payloads.filter(p => p.includes('/mnt/usb')).length} Files
+          </span>
+        </div>
+
+        <div className={cn("grid gap-4", isPS5 ? "grid-cols-2" : "grid-cols-1")}>
+          {payloads.filter(p => p.includes('/mnt/usb')).length === 0 ? (
+            <div className="col-span-full py-20 border-2 border-dashed border-white/5 rounded-ps-3xl flex flex-col items-center justify-center space-y-4 bg-white/[0.01]">
+              <HardDrive className="w-16 h-16 text-white/5" />
+              <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm italic">No USB Payloads Found</p>
+            </div>
+          ) : (
+            payloads.filter(p => p.includes('/mnt/usb')).map((path, i) => {
+              const fileName = path.split('/').pop()
+              return (
+                <div key={i} className={cn(
+                  "group flex justify-between p-4 md:p-6 glass-card rounded-ps-2xl border-white/10 hover:border-ps-blue/30 gap-4",
+                  isPS5 ? "flex-row items-center" : "flex-col md:flex-row md:items-center"
+                )}>
+                  <div className="flex items-center space-x-4 md:space-x-6 min-w-0">
+                    <div className="p-3 md:p-4 bg-white/5 rounded-2xl group-hover:bg-ps-blue/10 transition-colors shrink-0">
+                      <Usb className="w-6 h-6 md:w-8 md:h-8 text-zinc-400 group-hover:text-ps-blue transition-colors" />
+                    </div>
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <PayloadName path={path} className="text-xl md:text-2xl text-white" stacked hideIcon={true} />
+                      <p className="text-[10px] text-zinc-600 font-medium font-mono uppercase tracking-tighter opacity-60 truncate">{path}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center ml-auto md:ml-0">
+                    <button
+                      onClick={() => onImportFromUsb(path)}
+                      className="flex items-center space-x-2 md:space-x-3 px-4 md:px-6 py-3 md:py-4 bg-white/5 hover:bg-ps-blue text-white rounded-xl font-bold text-xs md:text-sm transition-all border border-white/10 hover:border-ps-blue shadow-xl group/btn"
+                    >
+                      <Database className="w-4 h-4 md:w-5 md:h-5 text-ps-blue group-hover/btn:text-white transition-colors" />
+                      <span>Move to Internal</span>
+                    </button>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
       </section>
 
       {/* Footer Info for PS5 */}
