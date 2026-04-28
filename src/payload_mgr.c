@@ -7,9 +7,17 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include "payload_mgr.h"
+#include <stdint.h>
+#include <errno.h>
+#include <curl/curl.h>
+#include "assets_cacert_pem.h"
+
+int payload_mgr_repository_install_commit(const char *filename, const char *uploaded_temp_path, const char *install_source, const char *install_source_detail, char *msg_buf, size_t msg_buf_size);
+
 #include "pldmgr.h"
 #include "autoload.h"
+
+
 
 static const char **scan_dirs = (const char **)SCAN_DIRS;
 static const int scan_dirs_count = SCAN_DIRS_COUNT;
@@ -335,14 +343,72 @@ static int is_allowed_usb_path(const char *path) {
         return 0;
     }
 
-    /*
-     * download_to_file - not used on PS5 (browser-side fetch).
-     * Kept as a stub so ensure_fresh compiles unchanged.
-     */
+    static size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream) {
+        size_t written = fwrite(ptr, size, nmemb, stream);
+        return written;
+    }
+
     static int download_to_file(const char *url, const char *out_path) {
-        (void)url; (void)out_path;
-        pldmgr_log("[PLDMGR] Download via C not supported; use browser push.\n");
-        return -1;
+        CURL *curl;
+        FILE *fp;
+        CURLcode res = CURLE_FAILED_INIT;
+
+        if (!url || !out_path) {
+            pldmgr_log("[PLDMGR] download_to_file: missing url or path\n");
+            return -1;
+        }
+
+        fp = fopen(out_path, "wb");
+        if (!fp) {
+            pldmgr_log("[PLDMGR] download_to_file: failed to open %s\n", out_path);
+            return -1;
+        }
+
+        curl = curl_easy_init();
+        if (curl) {
+            curl_easy_setopt(curl, CURLOPT_URL, url);
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+            
+            // Set user agent
+            curl_easy_setopt(curl, CURLOPT_USERAGENT, "pldmgr/1.0");
+            
+            // Securely verify SSL against embedded CA bundle
+            struct curl_blob blob;
+            blob.data = (void *)assets_cacert_pem;
+            blob.len = assets_cacert_pem_len;
+            blob.flags = CURL_BLOB_COPY;
+
+            curl_easy_setopt(curl, CURLOPT_CAINFO_BLOB, &blob);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+            
+            // Allow redirection
+            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+
+            res = curl_easy_perform(curl);
+            
+            long http_code = 0;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+            
+            curl_easy_cleanup(curl);
+
+            if (res != CURLE_OK) {
+                pldmgr_log("[PLDMGR] curl_easy_perform failed: %s url=%s\n", curl_easy_strerror(res), url);
+            } else if (http_code != 200) {
+                pldmgr_log("[PLDMGR] HTTP status %ld for %s\n", http_code, url);
+                res = CURLE_HTTP_RETURNED_ERROR;
+            }
+        }
+
+        fclose(fp);
+
+        if (res != CURLE_OK) {
+            remove(out_path);
+            return -1;
+        }
+
+        return 0;
     }
 
     static int parse_config_last_update(long *out_ts) {
@@ -1121,6 +1187,77 @@ static int is_allowed_usb_path(const char *path) {
 
         free(cached);
         return pos;
+    }
+
+    int payload_mgr_repository_install_download(const char *filename, const char *install_source_detail, char *msg_buf, size_t msg_buf_size) {
+        RepoPayload *items = NULL;
+        size_t count = 0;
+        int found = -1;
+        char tmp_path[512];
+
+        if (msg_buf && msg_buf_size > 0) {
+            msg_buf[0] = '\0';
+        }
+
+        if (!filename || strlen(filename) == 0 || strstr(filename, "/") || strstr(filename, "..")) {
+            snprintf(msg_buf, msg_buf_size, "Invalid filename");
+            return -1;
+        }
+
+        if (load_cached_repository(&items, &count) != 0 || count == 0) {
+            if (payload_mgr_repository_ensure_fresh(1) == 0) {
+                if (load_cached_repository(&items, &count) != 0 || count == 0) {
+                    snprintf(msg_buf, msg_buf_size, "Repository cache missing or invalid");
+                    if (items) {
+                        free(items);
+                    }
+                    return -1;
+                }
+            } else {
+                snprintf(msg_buf, msg_buf_size, "Repository cache missing or invalid");
+                if (items) {
+                    free(items);
+                }
+                return -1;
+            }
+        }
+
+        for (size_t i = 0; i < count; i++) {
+            if (strcmp(items[i].filename, filename) == 0) {
+                found = (int)i;
+                break;
+            }
+        }
+
+        if (found < 0) {
+            free(items);
+            snprintf(msg_buf, msg_buf_size, "Payload not found in repository");
+            return -1;
+        }
+
+        ensure_dir_recursive(PAYLOADS_STORAGE_DIR);
+        snprintf(tmp_path, sizeof(tmp_path), "%s/%s.part", PAYLOADS_STORAGE_DIR, items[found].filename);
+
+        if (download_to_file(items[found].url, tmp_path) != 0) {
+            free(items);
+            snprintf(msg_buf, msg_buf_size, "Download failed");
+            remove(tmp_path);
+            return -1;
+        }
+
+        const char *detail = (install_source_detail && install_source_detail[0])
+                                 ? install_source_detail
+                                 : REPOSITORY_SOURCE_URL;
+
+        if (payload_mgr_repository_install_commit(items[found].filename, tmp_path,
+                                                  "repository", detail,
+                                                  msg_buf, msg_buf_size) != 0) {
+            free(items);
+            return -1;
+        }
+
+        free(items);
+        return 0;
     }
 
     int payload_mgr_repository_install_commit(const char *filename, const char *uploaded_temp_path, const char *install_source, const char *install_source_detail, char *msg_buf, size_t msg_buf_size) {

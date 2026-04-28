@@ -193,21 +193,14 @@ function App() {
     setConfirmModal({ show: false })
     setDownloadModal({ show: true, name: p.filename, progress: 10 })
     try {
-      const elfRes = await fetch(p.url)
-      if (!elfRes.ok) throw new Error('Failed to fetch payload from source')
-      setDownloadModal(prev => ({ ...prev, progress: 50 }))
-
-      const buffer = await elfRes.arrayBuffer()
-      setDownloadModal(prev => ({ ...prev, progress: 70 }))
-
-      const pushRes = await fetch(
-        `/repository_install_push?filename=${encodeURIComponent(p.filename)}&repo_url=${encodeURIComponent(repoUrl || '')}`,
-        { method: 'POST', body: buffer }
+      setDownloadModal(prev => ({ ...prev, progress: 30 }))
+      const res = await fetch(
+        `/repository_install?filename=${encodeURIComponent(p.filename)}&repo_url=${encodeURIComponent(repoUrl || '')}`
       )
-      setDownloadModal(prev => ({ ...prev, progress: 90 }))
+      setDownloadModal(prev => ({ ...prev, progress: 80 }))
 
-      const data = await pushRes.json().catch(() => null)
-      if (pushRes.ok && data?.ok) {
+      const data = await res.json().catch(() => null)
+      if (res.ok && data?.ok) {
         setDownloadModal(prev => ({ ...prev, progress: 100 }))
         addToast(`${p.filename} installed`)
         refreshPayloads()

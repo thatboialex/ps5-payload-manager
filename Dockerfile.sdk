@@ -34,10 +34,10 @@ RUN git clone https://github.com/ps5-payload-dev/sdk.git ps5-payload-sdk-source
 WORKDIR /opt/ps5-payload-sdk-source
 RUN make DESTDIR=/opt/ps5-payload-sdk install
 
-# Build libmicrohttpd for PS5 using the SDK
+# Build dependencies for PS5 using the SDK (libmicrohttpd, OpenSSL, libcurl)
 WORKDIR /opt
-COPY build_libmicrohttpd.sh /opt/build_libmicrohttpd.sh
-RUN bash /opt/build_libmicrohttpd.sh
+COPY build_deps.sh /opt/build_deps.sh
+RUN bash /opt/build_deps.sh
 
 # Set the environment variables for subsequent builds
 ENV PS5_PAYLOAD_SDK=/opt/ps5-payload-sdk

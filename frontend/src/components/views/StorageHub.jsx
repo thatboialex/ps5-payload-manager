@@ -11,34 +11,14 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
   const [error, setError] = useState(false)
   const [lastUpdate, setLastUpdate] = useState(0)
 
-  const PAYLOAD_REPO_URL = 'https://itsplk.github.io/ps5_payloads/ps5_payloads.json'
-
   const fetchRemote = async (force = false) => {
     setLoading(true)
     setError(false)
     try {
-      let data
-
-      if (force) {
-        // Browser fetches JSON over HTTPS (no TLS issues in the browser),
-        // then POSTs it to the daemon which stores it as the local cache.
-        const ghRes = await fetch(PAYLOAD_REPO_URL)
-        if (!ghRes.ok) throw new Error('GitHub fetch failed')
-        const rawJson = await ghRes.text()
-
-        const pushRes = await fetch('/repository_push', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: rawJson,
-        })
-        if (!pushRes.ok) throw new Error('Push to daemon failed')
-        data = await pushRes.json()
-      } else {
-        // Normal load: read from the daemon's local cache
-        const res = await fetch('/repository_payloads')
-        if (!res.ok) throw new Error()
-        data = await res.json()
-      }
+      const endpoint = force ? '/repository_refresh' : '/repository_payloads'
+      const res = await fetch(endpoint)
+      if (!res.ok) throw new Error()
+      const data = await res.json()
 
       if (!Array.isArray(data?.payloads)) throw new Error()
       setRemotePayloads(data.payloads)

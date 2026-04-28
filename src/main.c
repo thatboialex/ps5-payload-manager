@@ -843,6 +843,38 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
     resp = MHD_create_response_from_buffer(len, (void *)resp_buf,
                                            MHD_RESPMEM_MUST_FREE);
     MHD_add_response_header(resp, "Content-Type", "application/json");
+  } else if (strcmp(url, ROUTE_REPO_INSTALL) == 0) {
+    const char *filename = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "filename");
+    const char *repo_url = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "repo_url");
+    if (!filename) {
+      const char *err = "{\"ok\":false,\"message\":\"Missing filename\"}";
+      resp = MHD_create_response_from_buffer(strlen(err), (void *)err, MHD_RESPMEM_MUST_COPY);
+      MHD_add_response_header(resp, "Content-Type", "application/json");
+      add_cors_headers(resp);
+      return MHD_queue_response(conn, MHD_HTTP_BAD_REQUEST, resp);
+    }
+    if (!is_safe_filename(filename)) {
+      const char *err = "{\"ok\":false,\"message\":\"Invalid filename\"}";
+      resp = MHD_create_response_from_buffer(strlen(err), (void *)err, MHD_RESPMEM_MUST_COPY);
+      MHD_add_response_header(resp, "Content-Type", "application/json");
+      add_cors_headers(resp);
+      return MHD_queue_response(conn, MHD_HTTP_BAD_REQUEST, resp);
+    }
+
+    char msg_buf[1024] = "";
+    const char *detail = (repo_url && repo_url[0]) ? repo_url : REPOSITORY_SOURCE_URL;
+    int rc = payload_mgr_repository_install_download(filename, detail, msg_buf, sizeof(msg_buf));
+    if (msg_buf[0] == '\0') {
+      snprintf(msg_buf, sizeof(msg_buf), rc == 0 ? "Installed" : "Install failed");
+    }
+
+    char json_resp[1024];
+    snprintf(json_resp, sizeof(json_resp), "{\"ok\":%s,\"message\":\"%s\"}",
+             rc == 0 ? "true" : "false", msg_buf);
+    resp = MHD_create_response_from_buffer(strlen(json_resp), (void *)json_resp, MHD_RESPMEM_MUST_COPY);
+    MHD_add_response_header(resp, "Content-Type", "application/json");
+    add_cors_headers(resp);
+    return MHD_queue_response(conn, rc == 0 ? MHD_HTTP_OK : MHD_HTTP_INTERNAL_SERVER_ERROR, resp);
   } else if (strncmp(url, ROUTE_LOAD_PAYLOAD, strlen(ROUTE_LOAD_PAYLOAD)) ==
              0) {
     const char *path = url + strlen(ROUTE_LOAD_PAYLOAD);

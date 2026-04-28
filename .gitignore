@@ -5,6 +5,7 @@
 
 # Generated Asset Headers
 include/assets_index_html.h
+include/assets_cacert_pem.h
 
 # Frontend build artifacts
 frontend/dist/
@@ -19,3 +20,11 @@ Thumbs.db
 
 # Reference materials
 .for_reference/
+
+# Scratch directory
+scratch/
+
+# Local build dependency artifacts
+lib/
+include/curl/
+include/openssl/
