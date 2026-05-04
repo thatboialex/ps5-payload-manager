@@ -1,0 +1,38 @@
+name: Build PS5 Payload Manager ELF
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-elf:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build frontend
+        run: |
+          make frontend-build
+
+      - name: Build PS5 SDK Docker image
+        run: |
+          docker build -t ps5-payload-sdk -f Dockerfile.sdk .
+
+      - name: Build ELF
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src ps5-payload-sdk make clean all
+
+      - name: Verify ELF exists
+        run: |
+          test -f pldmgr.elf
+          ls -lh pldmgr.elf
+
+      - name: Upload ELF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pldmgr-elf
+          path: pldmgr.elf
