@@ -24,6 +24,7 @@
 #include "payload_mgr.h"
 #include "ps5_launcher.h"
 #include "app_installer.h"
+#include "preset_runner.h"
 #include <errno.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -352,6 +353,24 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
       return MHD_YES;
     }
 
+    if (strcmp(url, ROUTE_AUTOLOAD_PRESETS) == 0 && strcmp(method, "POST") == 0) {
+      struct PostStatus *status = malloc(sizeof(struct PostStatus));
+      status->data = NULL;
+      status->size = 0;
+      status->error = 0;
+      *con_cls = status;
+      return MHD_YES;
+    }
+
+    if (strcmp(url, ROUTE_RUN_PRESET) == 0 && strcmp(method, "POST") == 0) {
+      struct PostStatus *status = malloc(sizeof(struct PostStatus));
+      status->data = NULL;
+      status->size = 0;
+      status->error = 0;
+      *con_cls = status;
+      return MHD_YES;
+    }
+
     if (strncmp(url, ROUTE_REPO_INSTALL_PUSH,
                 strlen(ROUTE_REPO_INSTALL_PUSH)) == 0 &&
         strcmp(method, "POST") == 0) {
@@ -617,6 +636,160 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
           conn, ok == 0 ? MHD_HTTP_OK : MHD_HTTP_BAD_REQUEST, resp);
       MHD_destroy_response(resp);
       return ret2;
+    }
+  }
+
+  /* POST data for /autoload_presets: persist preset JSON to file. */
+  if (strcmp(url, ROUTE_AUTOLOAD_PRESETS) == 0 && strcmp(method, "POST") == 0) {
+    struct PostStatus *status = (struct PostStatus *)*con_cls;
+    if (*upload_data_size != 0) {
+      size_t new_size = status->size + *upload_data_size;
+      if (new_size > AUTOLOAD_PRESETS_MAX_SIZE) {
+        status->error = 1;
+        *upload_data_size = 0;
+        return MHD_YES;
+      }
+      char *nd = realloc(status->data, new_size + 1);
+      if (!nd) {
+        status->error = 1;
+      } else {
+        status->data = nd;
+        memcpy(status->data + status->size, upload_data, *upload_data_size);
+        status->size = new_size;
+        status->data[status->size] = '\0';
+      }
+      *upload_data_size = 0;
+      return MHD_YES;
+    } else {
+      int ok = 0;
+      if (status->data && !status->error) {
+        /* Trim leading whitespace for a basic sanity check. */
+        char *p = status->data;
+        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+        if (*p != '[') {
+          status->error = 1;
+        } else {
+          mkdir(BASE_DATA_DIR, 0777);
+          FILE *f = fopen(AUTOLOAD_PRESETS_PATH, "w");
+          if (f) {
+            fwrite(status->data, 1, status->size, f);
+            fclose(f);
+            pldmgr_log("[PLDMGR] Saved presets to %s (%zu bytes)\n",
+                       AUTOLOAD_PRESETS_PATH, status->size);
+            ok = 1;
+          } else {
+            status->error = 1;
+          }
+        }
+      }
+
+      int err = status->error || !ok;
+      if (status->data) free(status->data);
+      free(status);
+      *con_cls = NULL;
+
+      const char *msg = err ? "{\"ok\":false,\"message\":\"Save failed\"}"
+                            : "{\"ok\":true,\"message\":\"Saved\"}";
+      struct MHD_Response *r = MHD_create_response_from_buffer(
+          strlen(msg), (void *)msg, MHD_RESPMEM_MUST_COPY);
+      MHD_add_response_header(r, "Content-Type", "application/json");
+      add_cors_headers(r);
+      enum MHD_Result rr = MHD_queue_response(
+          conn, err ? MHD_HTTP_BAD_REQUEST : MHD_HTTP_OK, r);
+      MHD_destroy_response(r);
+      return rr;
+    }
+  }
+
+  /* POST data for /run_preset: parse items[] and start immediate runner. */
+  if (strcmp(url, ROUTE_RUN_PRESET) == 0 && strcmp(method, "POST") == 0) {
+    struct PostStatus *status = (struct PostStatus *)*con_cls;
+    if (*upload_data_size != 0) {
+      size_t new_size = status->size + *upload_data_size;
+      if (new_size > AUTOLOAD_PRESETS_MAX_SIZE) {
+        status->error = 1;
+        *upload_data_size = 0;
+        return MHD_YES;
+      }
+      char *nd = realloc(status->data, new_size + 1);
+      if (!nd) {
+        status->error = 1;
+      } else {
+        status->data = nd;
+        memcpy(status->data + status->size, upload_data, *upload_data_size);
+        status->size = new_size;
+        status->data[status->size] = '\0';
+      }
+      *upload_data_size = 0;
+      return MHD_YES;
+    } else {
+      int started = 0;
+      char err_msg[128] = "";
+      if (status->data && !status->error) {
+        /* Locate the items array. */
+        char *items_key = strstr(status->data, "\"items\"");
+        char *arr_start = items_key ? strchr(items_key, '[') : NULL;
+        if (!arr_start) {
+          snprintf(err_msg, sizeof(err_msg), "Missing items array");
+        } else {
+#define PR_LOCAL_MAX 64
+#define PR_LOCAL_LEN 256
+          static char items_buf[PR_LOCAL_MAX][PR_LOCAL_LEN];
+          const char *items_ptrs[PR_LOCAL_MAX];
+          int count = 0;
+          char *p = arr_start + 1;
+          while (*p && count < PR_LOCAL_MAX) {
+            while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n' ||
+                   *p == ',')
+              p++;
+            if (*p == ']' || *p == '\0') break;
+            if (*p != '"') break;
+            p++;
+            char *out = items_buf[count];
+            size_t out_len = 0;
+            while (*p && *p != '"' && out_len < PR_LOCAL_LEN - 1) {
+              if (*p == '\\' && p[1]) {
+                out[out_len++] = p[1];
+                p += 2;
+              } else {
+                out[out_len++] = *p;
+                p++;
+              }
+            }
+            out[out_len] = '\0';
+            if (*p == '"') p++;
+            items_ptrs[count] = items_buf[count];
+            count++;
+          }
+
+          if (count == 0) {
+            snprintf(err_msg, sizeof(err_msg), "Empty items");
+          } else if (preset_runner_start(items_ptrs, count) == 0) {
+            started = 1;
+          } else {
+            snprintf(err_msg, sizeof(err_msg), "Runner busy or invalid");
+          }
+        }
+      } else {
+        snprintf(err_msg, sizeof(err_msg), "Invalid request");
+      }
+
+      if (status->data) free(status->data);
+      free(status);
+      *con_cls = NULL;
+
+      char json[256];
+      snprintf(json, sizeof(json), "{\"ok\":%s,\"message\":\"%s\"}",
+               started ? "true" : "false",
+               started ? "Started" : err_msg);
+      struct MHD_Response *r = MHD_create_response_from_buffer(
+          strlen(json), (void *)json, MHD_RESPMEM_MUST_COPY);
+      MHD_add_response_header(r, "Content-Type", "application/json");
+      add_cors_headers(r);
+      enum MHD_Result rr = MHD_queue_response(
+          conn, started ? MHD_HTTP_OK : MHD_HTTP_BAD_REQUEST, r);
+      MHD_destroy_response(r);
+      return rr;
     }
   }
 
@@ -1037,6 +1210,53 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
     resp = MHD_create_response_from_buffer(strlen(msg), (void *)msg,
                                            MHD_RESPMEM_PERSISTENT);
     MHD_add_response_header(resp, "Content-Type", "text/plain");
+  } else if (strcmp(url, ROUTE_AUTOLOAD_PRESETS) == 0 &&
+             strcmp(method, "GET") == 0) {
+    /* Return presets file body, or "[]" if missing/unreadable. */
+    char *resp_buf;
+    struct MHD_Response *oom_resp = alloc_response_buffer(&resp_buf);
+    if (oom_resp)
+      return MHD_queue_response(conn, MHD_HTTP_INTERNAL_SERVER_ERROR, oom_resp);
+
+    size_t len = 0;
+    FILE *f = fopen(AUTOLOAD_PRESETS_PATH, "r");
+    if (f) {
+      len = fread(resp_buf, 1, RESPONSE_BUFFER_SIZE - 1, f);
+      fclose(f);
+    }
+    if (len == 0) {
+      const char *empty = "[]";
+      memcpy(resp_buf, empty, 2);
+      len = 2;
+    }
+    resp_buf[len] = '\0';
+    resp = MHD_create_response_from_buffer(len, (void *)resp_buf,
+                                           MHD_RESPMEM_MUST_FREE);
+    MHD_add_response_header(resp, "Content-Type", "application/json");
+  } else if (strcmp(url, ROUTE_RUN_PRESET_STATUS) == 0) {
+    int active = 0, total = 0, done = 0;
+    char current[128] = "";
+    char state[16] = "";
+    long long remaining_ms = 0;
+    preset_runner_get_status(&active, &total, &done, current, sizeof(current),
+                             &remaining_ms, state, sizeof(state));
+    char current_escaped[256];
+    pldmgr_json_escape(current, current_escaped, sizeof(current_escaped));
+    char buf[512];
+    snprintf(buf, sizeof(buf),
+             "{\"active\":%s,\"total\":%d,\"done\":%d,\"current\":\"%s\","
+             "\"remaining_ms\":%lld,\"state\":\"%s\"}",
+             active ? "true" : "false", total, done, current_escaped,
+             remaining_ms, state);
+    resp = MHD_create_response_from_buffer(strlen(buf), (void *)buf,
+                                           MHD_RESPMEM_MUST_COPY);
+    MHD_add_response_header(resp, "Content-Type", "application/json");
+  } else if (strcmp(url, ROUTE_RUN_PRESET_ABORT) == 0) {
+    preset_runner_abort();
+    const char *msg = "{\"ok\":true}";
+    resp = MHD_create_response_from_buffer(strlen(msg), (void *)msg,
+                                           MHD_RESPMEM_PERSISTENT);
+    MHD_add_response_header(resp, "Content-Type", "application/json");
   } else if (strcmp(url, ROUTE_ABORT) == 0) {
     pldmgr_autoload_abort();
     const char *msg = "Autoload sequence aborted.\n";

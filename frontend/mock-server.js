@@ -165,6 +165,106 @@ app.get('/abort', (req, res) => {
   res.send('OK');
 });
 
+// --- Autoload Presets ---
+let autoloadPresets = [
+  { id: 1, name: "Default HEN Chain", items: ["goldhen_v2.4b17.elf", "!1000", "etaHEN_1.8.elf"] }
+];
+
+app.get('/autoload_presets', (req, res) => {
+  res.json(autoloadPresets);
+});
+
+app.post('/autoload_presets', (req, res) => {
+  if (!Array.isArray(req.body)) {
+    return res.status(400).json({ ok: false, message: "Body must be a JSON array" });
+  }
+  autoloadPresets = req.body.slice(0, 5);
+  logs.push(`[PLDMGR] Saved ${autoloadPresets.length} presets`);
+  res.json({ ok: true, message: "Saved" });
+});
+
+// --- Immediate preset runner (mocked) ---
+let runStatus = { active: false, total: 0, done: 0, current: "", remaining_ms: 0, state: "idle" };
+let runItems = [];
+let runIndex = 0;
+let runTimer = null;
+let runDelayEnd = 0;
+
+function runStep() {
+  clearTimeout(runTimer);
+  if (runIndex >= runItems.length || !runStatus.active) {
+    runStatus.active = false;
+    runStatus.state = runStatus.state === 'aborted' ? 'aborted' : 'done';
+    runStatus.current = "DONE";
+    runStatus.remaining_ms = 0;
+    return;
+  }
+  const item = runItems[runIndex];
+  runStatus.current = item;
+  if (item.startsWith('!')) {
+    const ms = parseInt(item.substring(1)) || 0;
+    runStatus.state = 'delay';
+    runDelayEnd = Date.now() + ms;
+    runStatus.remaining_ms = ms;
+    const tick = () => {
+      if (!runStatus.active) return;
+      const left = runDelayEnd - Date.now();
+      if (left <= 0) {
+        runIndex++;
+        runStep();
+      } else {
+        runStatus.remaining_ms = left;
+        runTimer = setTimeout(tick, 100);
+      }
+    };
+    tick();
+  } else {
+    runStatus.state = 'launching';
+    runStatus.remaining_ms = 0;
+    logs.push(`[Preset] Launching ${item}`);
+    runStatus.done++;
+    runIndex++;
+    runTimer = setTimeout(runStep, 800);
+  }
+}
+
+app.post('/run_preset', (req, res) => {
+  if (runStatus.active) {
+    return res.status(400).json({ ok: false, message: "Already running" });
+  }
+  const items = Array.isArray(req.body?.items) ? req.body.items.filter(x => typeof x === 'string') : [];
+  if (items.length === 0) {
+    return res.status(400).json({ ok: false, message: "Empty items" });
+  }
+  runItems = items;
+  runIndex = 0;
+  runStatus = {
+    active: true,
+    total: items.filter(i => !i.startsWith('!')).length,
+    done: 0,
+    current: items[0],
+    remaining_ms: 0,
+    state: 'launching'
+  };
+  logs.push(`[Preset] Sequence start (${items.length} items)`);
+  setTimeout(runStep, 0);
+  res.json({ ok: true, message: "Started" });
+});
+
+app.get('/run_preset_status', (req, res) => {
+  res.json(runStatus);
+});
+
+app.post('/run_preset_abort', (req, res) => {
+  if (runStatus.active) {
+    runStatus.active = false;
+    runStatus.state = 'aborted';
+    clearTimeout(runTimer);
+    logs.push(`[Preset] Aborted`);
+  }
+  res.json({ ok: true });
+});
+
 app.get('/autoload_clear', (req, res) => {
   logs.push(`[PLDMGR] Autoload status cleared`);
   autoloadStatus.done = 0;
