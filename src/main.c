@@ -734,7 +734,7 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
         } else {
 #define PR_LOCAL_MAX 64
 #define PR_LOCAL_LEN 256
-          static char items_buf[PR_LOCAL_MAX][PR_LOCAL_LEN];
+          char items_buf[PR_LOCAL_MAX][PR_LOCAL_LEN];
           const char *items_ptrs[PR_LOCAL_MAX];
           int count = 0;
           char *p = arr_start + 1;
@@ -1213,15 +1213,39 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
   } else if (strcmp(url, ROUTE_AUTOLOAD_PRESETS) == 0 &&
              strcmp(method, "GET") == 0) {
     /* Return presets file body, or "[]" if missing/unreadable. */
-    char *resp_buf;
-    struct MHD_Response *oom_resp = alloc_response_buffer(&resp_buf);
-    if (oom_resp)
-      return MHD_queue_response(conn, MHD_HTTP_INTERNAL_SERVER_ERROR, oom_resp);
+    char *resp_buf = malloc(AUTOLOAD_PRESETS_MAX_SIZE + 1);
+    if (!resp_buf) {
+      static const char oom[] = "{\"error\":\"Out of memory\"}";
+      resp = MHD_create_response_from_buffer(sizeof(oom) - 1, (void *)oom,
+                                             MHD_RESPMEM_PERSISTENT);
+      MHD_add_response_header(resp, "Content-Type", "application/json");
+      add_cors_headers(resp);
+      ret = MHD_queue_response(conn, MHD_HTTP_INTERNAL_SERVER_ERROR, resp);
+      MHD_destroy_response(resp);
+      return ret;
+    }
 
     size_t len = 0;
     FILE *f = fopen(AUTOLOAD_PRESETS_PATH, "r");
     if (f) {
-      len = fread(resp_buf, 1, RESPONSE_BUFFER_SIZE - 1, f);
+      len = fread(resp_buf, 1, AUTOLOAD_PRESETS_MAX_SIZE, f);
+      if (len == AUTOLOAD_PRESETS_MAX_SIZE) {
+        int ch = fgetc(f);
+        if (ch != EOF) {
+          fclose(f);
+          free(resp_buf);
+          static const char too_large[] =
+              "{\"ok\":false,\"message\":\"Presets file too large\"}";
+          resp = MHD_create_response_from_buffer(sizeof(too_large) - 1,
+                                                 (void *)too_large,
+                                                 MHD_RESPMEM_PERSISTENT);
+          MHD_add_response_header(resp, "Content-Type", "application/json");
+          add_cors_headers(resp);
+          ret = MHD_queue_response(conn, MHD_HTTP_BAD_REQUEST, resp);
+          MHD_destroy_response(resp);
+          return ret;
+        }
+      }
       fclose(f);
     }
     if (len == 0) {
