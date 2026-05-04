@@ -29,12 +29,18 @@
 #define ROUTE_USB_MOVE_CHECK "/usb_move_check"
 #define ROUTE_USB_MOVE_PERFORM "/usb_move_perform"
 #define ROUTE_CACHE_MANIFEST "/cache.appcache"
+#define ROUTE_AUTOLOAD_PRESETS "/autoload_presets"
+#define ROUTE_RUN_PRESET "/run_preset"
+#define ROUTE_RUN_PRESET_STATUS "/run_preset_status"
+#define ROUTE_RUN_PRESET_ABORT "/run_preset_abort"
 
 
 
 
 #define MENU_VERSION "0.1.1"
 #define AUTOLOAD_CONFIG_PATH "/data/pldmgr/autoload.txt"
+#define AUTOLOAD_PRESETS_PATH "/data/pldmgr/autoload_presets.json"
+#define AUTOLOAD_PRESETS_MAX_SIZE 65536
 #define PLDMGR_CONFIG_PATH "/data/pldmgr/pldmgr_config.txt"
 #define REPOSITORY_CACHE_PATH "/data/pldmgr/repository_cache.json"
 #define PAYLOADS_STORAGE_DIR "/data/pldmgr/payloads"

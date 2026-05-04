@@ -12,7 +12,7 @@ INCLUDES := -Iinclude -I$(TARGET)/include
 LIBS     := -L$(TARGET)/lib -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lmicrohttpd -lpthread -lSceNetCtl -lSceUserService -lSceSystemService -lSceAppInstUtil -lSceHttp2 -lSceSsl -lSceNet
 
 # Source Files
-SRCS := src/main.c src/payload_mgr.c src/ps5_launcher.c src/notification.c src/utils.c src/autoload.c src/app_installer.c
+SRCS := src/main.c src/payload_mgr.c src/ps5_launcher.c src/notification.c src/utils.c src/autoload.c src/app_installer.c src/preset_runner.c
 OBJS := $(SRCS:.c=.o)
 ELF  := pldmgr.elf
 

@@ -10,7 +10,9 @@ import {
   Heart,
   Menu,
   Terminal,
-  X
+  X,
+  Layers,
+  Play
 } from 'lucide-react'
 
 import './App.css'
@@ -28,6 +30,8 @@ import LogoIcon from './components/ui/LogoIcon'
 // Views
 import StorageHub from './components/views/StorageHub'
 import AutoloadView from './components/views/AutoloadView'
+import AutoloadPresetsView from './components/views/AutoloadPresetsView'
+import LoadPresetView from './components/views/LoadPresetView'
 import SettingsView from './components/views/SettingsView'
 import DonateView from './components/views/DonateView'
 import AutoloadOverlay from './components/views/AutoloadOverlay'
@@ -289,7 +293,7 @@ function App() {
 
 
   useEffect(() => {
-    if (view === 'autoload' || view === 'storage') {
+    if (view === 'autoload' || view === 'storage' || view === 'presets') {
       refreshConfig()
       refreshPayloads()
     }
@@ -409,6 +413,8 @@ function App() {
             <NavButton sidebar sidebarExpanded={sidebarExpanded} active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={LayoutDashboard} label="Dashboard" />
             <NavButton sidebar sidebarExpanded={sidebarExpanded} active={view === 'storage'} onClick={() => setView('storage')} icon={Database} label="Manage Payloads" />
             <NavButton sidebar sidebarExpanded={sidebarExpanded} active={view === 'autoload'} onClick={() => setView('autoload')} icon={RefreshCw} label="Autoload" />
+            <NavButton sidebar sidebarExpanded={sidebarExpanded} active={view === 'presets'} onClick={() => setView('presets')} icon={Layers} label="Autoload Presets" />
+            <NavButton sidebar sidebarExpanded={sidebarExpanded} active={view === 'load_preset'} onClick={() => setView('load_preset')} icon={Play} label="Load Preset" />
             <NavButton sidebar sidebarExpanded={sidebarExpanded} active={view === 'settings'} onClick={() => setView('settings')} icon={Settings} label="Settings" />
           </nav>
 
@@ -434,6 +440,8 @@ function App() {
         <NavButton active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={LayoutDashboard} label="Dashboard" mobileLabel="HOME" />
         <NavButton showSeparator active={view === 'storage'} onClick={() => setView('storage')} icon={Database} label="Manage Payloads" mobileLabel="MANAGE" />
         <NavButton showSeparator active={view === 'autoload'} onClick={() => setView('autoload')} icon={RefreshCw} label="Autoload" mobileLabel="AUTO" />
+        <NavButton showSeparator active={view === 'presets'} onClick={() => setView('presets')} icon={Layers} label="Autoload Presets" mobileLabel="PRESETS" />
+        <NavButton showSeparator active={view === 'load_preset'} onClick={() => setView('load_preset')} icon={Play} label="Load Preset" mobileLabel="RUN" />
         <NavButton showSeparator active={view === 'settings'} onClick={() => setView('settings')} icon={Settings} label="Settings" mobileLabel="SETTINGS" />
         <NavButton
           showSeparator
@@ -525,6 +533,21 @@ function App() {
               payloads={payloads}
               config={config}
               onSaveConfig={handleSaveConfig}
+              onToast={addToast}
+              onRedirect={(v) => setView(v)}
+            />
+          )}
+
+          {view === 'presets' && (
+            <AutoloadPresetsView
+              payloads={payloads}
+              config={config}
+              onToast={addToast}
+            />
+          )}
+
+          {view === 'load_preset' && (
+            <LoadPresetView
               onToast={addToast}
               onRedirect={(v) => setView(v)}
             />
