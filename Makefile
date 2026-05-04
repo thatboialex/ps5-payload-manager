@@ -9,7 +9,7 @@ STRIP  := /opt/ps5-payload-sdk/bin/prospero-strip
 SDK      := /opt/ps5-payload-sdk
 TARGET   := $(SDK)/target
 INCLUDES := -Iinclude -I$(TARGET)/include
-LIBS     := -L$(TARGET)/lib -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lmicrohttpd -lpthread -lSceNetCtl -lSceUserService -lSceSystemService -lSceAppInstUtil -lSceHttp2 -lSceSsl -lSceNet
+LIBS     := -L$(TARGET)/lib -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lmicrohttpd -lpthread -lSceNetCtl -lSceUserService -lSceAppInstUtil -lSceHttp2 -lSceSsl -lSceNet
 
 # Source Files
 SRCS := src/main.c src/payload_mgr.c src/ps5_launcher.c src/notification.c src/utils.c src/autoload.c src/app_installer.c src/preset_runner.c
@@ -41,10 +41,11 @@ frontend-build:
 	git diff --quiet || COMMIT="DEV"; \
 	DATE=$$(date -u +"%Y-%m-%d %H:%M:%S UTC"); \
 	TITLE="Payload Manager v$$VERSION by PLK ($$COMMIT, built at $$DATE)"; \
+	export TITLE DATE; \
 	echo "Updating title in index.html to: $$TITLE"; \
-	sed -i '' "s/\[\[TITLE_PLACEHOLDER\]\]/$$TITLE/g" frontend/dist/index.html; \
+	$(PYTHON) -c 'import os, pathlib; p = pathlib.Path("frontend/dist/index.html"); s = p.read_text(); p.write_text(s.replace("[[TITLE_PLACEHOLDER]]", os.environ["TITLE"]))'; \
 	echo "Updating build date in cache.appcache to: $$DATE"; \
-	sed -i '' "s/\[\[BUILD_DATE\]\]/$$DATE/g" frontend/dist/cache.appcache
+	$(PYTHON) -c 'import os, pathlib; p = pathlib.Path("frontend/dist/cache.appcache"); s = p.read_text(); p.write_text(s.replace("[[BUILD_DATE]]", os.environ["DATE"]))'
 
 
 
